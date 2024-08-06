@@ -1,13 +1,13 @@
 FROM ubuntu:20.04
 RUN apt-get update && apt-get install -y sudo curl 
 
-RUN groupadd -r newuser && useradd -r -g newuser newuser
-RUN adduser newuser sudo
+RUN groupadd -r dextra && useradd -r -g dextra dextra
+RUN adduser dextra sudo
 RUN adduser --disabled-password \
 --gecos '' docker
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> \
 /etc/sudoers
-RUN curl -sL https://deb.nodesource.com/setup_14.x | bash -
+RUN curl -sL https://deb.nodesource.com/setup_21.x | bash -
 RUN apt-get install -y nodejs
 RUN apt-get install -y gcc g++ make
 RUN curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | gpg --dearmor | tee /usr/share/keyrings/yarnkey.gpg >/dev/null
@@ -15,8 +15,8 @@ RUN echo "deb [signed-by=/usr/share/keyrings/yarnkey.gpg] https://dl.yarnpkg.com
 RUN apt-get update && apt-get install -y yarn
 
 
-RUN mkdir -p /home/newuser
-RUN chown -R 999:999 /home/newuser
+RUN mkdir -p /home/dextra
+RUN chown -R 999:999 /home/dextra
 
 RUN mkdir -p /project
 RUN chown -R 999:999 /project
@@ -30,16 +30,16 @@ RUN npm install -g @nomiclabs/hardhat-waffle ethereum-waffle chai @nomiclabs/har
 RUN npm install -g hardhat
 RUN npm install -g hardhat
 
-USER newuser
-WORKDIR /home/newuser
+USER dextra
+WORKDIR /home/dextra
 
 WORKDIR /project
 
-ENTRYPOINT ["/bin/bash"]
-
-
-
-
-
-
-
+COPY hardhat.config.js /project/hardhat.config.js
+RUN npm install --save-dev "hardhat@^2.22.7"
+RUN npm install --save-dev "@nomicfoundation/hardhat-toolbox"
+#ENTRYPOINT ["/bin/bash"]
+#CMD ["/usr/bin/npx", "hardhat, "node"]
+#CMD ["/usr/bin/npx hardhat node"]
+#RUN npx hardhat node > /dev/null &
+#CMD ["bash", "-c", "while true; do sleep 30; done"]
