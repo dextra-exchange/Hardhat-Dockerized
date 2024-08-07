@@ -1,48 +1,54 @@
 // scripts/import-transactions.js
 
 const fs = require('fs');
-const { ethers } = require('hardhat');
-const provider = ethers.provider;
+const { ethers, network } = require('hardhat');
+
 async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Using deployer address:", deployer.address);
 
-  // Load the exported transaction data
+  // Load the transaction data from the JSON file
   const transactions = JSON.parse(fs.readFileSync('transactions-data.json', 'utf8'));
 
   // Track the transaction status
   let successCount = 0;
   let failureCount = 0;
-  let nonce = 0;
-  // Import transactions
+
   for (const tx of transactions) {
-    // Prepare transaction object with default values if fields are missing
-    if(nonce === 0){
-      nonce = await provider.getTransactionCount(tx.from);
-    }
-    const txObject = {
-      nonce: nonce,
-      gasLimit: BigInt(tx.gasLimit || '21000'), // Default gas limit if missing
-      gasPrice: tx.gasPrice ? BigInt(tx.gasPrice) : undefined,
-      to: tx.to,
-      value: BigInt(tx.value || '0'), // Default value if missing
-      data: tx.data || '0x', // Default empty data if missing
-    };
-    nonce+=1;
     try {
-      console.log(`Sending transaction ${tx.hash}`);
+      const provider = ethers.provider;
 
-      // Send the transaction using the deployer
-      const txResponse = await deployer.sendTransaction(txObject);
-      console.log(`Transaction ${tx.hash} sent: ${txResponse.hash}`);
+      // Ensure recipient account exists with correct balance
+      const recipientBalance = await provider.getBalance(tx.to);
+      const newRecipientBalance = recipientBalance + (BigInt(tx.value));
 
-      // Wait for the transaction to be mined
-      await txResponse.wait();
-      console.log(`Transaction ${tx.hash} confirmed.`);
+      await network.provider.send("hardhat_setBalance", [
+        tx.to,
+        ethers.toQuantity(newRecipientBalance)
+      ]);
+
+      console.log(`Set balance of ${tx.to} to ${newRecipientBalance.toString()}`);
+
+      // Burn the amount from the sender's account
+      const senderBalance = await provider.getBalance(tx.from);
+      const gasCost = BigInt(tx.gasLimit) * BigInt(tx.gasPrice);
+      const totalCost = BigInt(tx.value) + gasCost;
+      const newSenderBalance = senderBalance - totalCost;
+
+      if (newSenderBalance < 0 ) {
+        throw new Error(`Insufficient balance in sender account ${tx.from} to cover the transaction cost`);
+      }
+
+      await network.provider.send("hardhat_setBalance", [
+        tx.from,
+        ethers.toQuantity(newSenderBalance)
+      ]);
+
+      console.log(`Reduced balance of ${tx.from} by ${totalCost.toString()}`);
 
       successCount++;
     } catch (error) {
-      console.error(`Failed to send transaction ${tx.hash}:`, error);
+      console.error(`Failed to process transaction ${tx.hash}:`, error);
       failureCount++;
     }
   }
