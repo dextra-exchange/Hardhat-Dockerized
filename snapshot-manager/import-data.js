@@ -15,6 +15,9 @@ async function main() {
   let failureCount = 0;
 
   for (const tx of transactions) {
+    if(tx.data != "0x"){
+    continue; 
+    }
     try {
       const provider = ethers.provider;
 
